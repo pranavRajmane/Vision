@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenFOAM Casting Visualization</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #container { display: flex; height: 100vh; }
+        #renderWindow { flex: 1; }
+        #controls { 
+            width: 300px; 
+            padding: 20px; 
+            background: #f0f0f0;
+            overflow-y: auto;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="renderWindow"></div>
+        <div id="controls">
+            <h2>Casting Visualization Controls</h2>
+            <div class="control-group">
+                <h3>Time Control</h3>
+                <input type="range" id="timeSlider" min="0" max="100" value="0">
+                <span id="timeDisplay">0.00s</span>
+                <button id="playButton">Play</button>
+            </div>
+            <div class="control-group">
+                <h3>Field Selection</h3>
+                <select id="fieldSelect">
+                    <option value="temperature">Temperature</option>
+                    <option value="velocity">Velocity</option>
+                    <option value="liquidFraction">Liquid Fraction</option>
+                    <option value="pressure">Pressure</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <h3>Visualization Options</h3>
+                <label>
+                    <input type="checkbox" id="streamlines"> Show Streamlines
+                </label>
+                <label>
+                    <input type="checkbox" id="vectors"> Show Velocity Vectors
+                </label>
+                <label>
+                    <input type="checkbox" id="isoSurface"> Show Solidification Front
+                </label>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
