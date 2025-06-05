@@ -1,0 +1,14 @@
+{
+    "totalTimesteps": 7,
+    "timeStep": 0.1,
+    "fields": ["U", "alpha.water", "p", "p_rgh", "rho", "patchID"],
+    "bounds": [-0.5, 0.5, -0.5, 0.5, 0, 0.3],
+    "description": "CFD simulation time series with multiphase flow",
+    "filePattern": "inlet_{index}.vtp",
+    "units": {
+      "U": "m/s",
+      "p": "Pa",
+      "alpha.water": "fraction",
+      "rho": "kg/m³"
+    }
+  }

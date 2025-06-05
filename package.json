@@ -1,18 +1,36 @@
 {
   "name": "vision",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "webpack --mode production",
+    "build-dev": "webpack --mode development",
+    "serve": "webpack serve --mode development"
   },
-  "keywords": [],
+  "keywords": [
+    "vtk",
+    "visualization",
+    "casting"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "VTK.js casting visualization application",
   "dependencies": {
     "@kitware/vtk.js": "^33.2.0",
-    "express": "^5.1.0",
+    "compression": "^1.8.0",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.27.4",
+    "@babel/preset-env": "^7.27.2",
+    "babel-loader": "^10.0.0",
+    "css-loader": "^7.1.2",
     "html-webpack-plugin": "^5.6.3",
+    "nodemon": "^3.0.0",
+    "style-loader": "^4.0.0",
     "webpack": "^5.99.9",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"
