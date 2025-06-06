@@ -19,14 +19,14 @@ app.use(express.static(path.join(__dirname)));
 // Serve static files from dist directory (webpack output)
 app.use('/dist', express.static(path.join(__dirname, '..', 'dist')));
 
-// Serve VTP files with caching
-app.use('/vtp', express.static(path.join(__dirname, 'vtp'), {
+// Serve VTP files from VTK/vtp_output directory with caching
+app.use('/VTK/vtp_output', express.static(path.join(__dirname, '..', 'VTK', 'vtp_output'), {
     maxAge: '1d',
     etag: true
 }));
 
-// Serve VTP files from the vtp directory (go up one level from src)
-app.use('/data', express.static(path.join(__dirname, '..', 'vtp'), {
+// Alternative route for data access (points to VTK/vtp_output)
+app.use('/data', express.static(path.join(__dirname, '..', 'VTK', 'vtp_output'), {
     maxAge: '1d',
     etag: true
 }));
@@ -35,11 +35,9 @@ app.use('/data', express.static(path.join(__dirname, '..', 'vtp'), {
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'index.html');
     
-    // Check if index.html exists, if not create a basic one
     if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
     } else {
-        // Create a basic HTML file if it doesn't exist
         const basicHTML = `
 <!DOCTYPE html>
 <html lang="en">
@@ -118,42 +116,55 @@ app.get('/', (req, res) => {
     }
 });
 
-// API endpoint for metadata - look in root vtp directory
+// Function to generate metadata by scanning the VTP files
+function generateMetadataFromFiles(vtpOutputPath) {
+    let timesteps = [];
+    
+    if (fs.existsSync(vtpOutputPath)) {
+        const files = fs.readdirSync(vtpOutputPath);
+        const vtpFiles = files.filter(file => 
+            file.startsWith('combined_timestep_') && file.endsWith('.vtp')
+        );
+        
+        timesteps = vtpFiles.map(file => {
+            const match = file.match(/combined_timestep_(\d+)\.vtp/);
+            return match ? parseInt(match[1]) : 0;
+        }).sort((a, b) => a - b);
+    }
+    
+    return {
+        totalTimesteps: timesteps.length,
+        timeStep: 0.1,
+        timesteps: timesteps,
+        fields: ['T', 'U', 'alpha.water', 'p', 'p_rgh', 'k', 'epsilon', 'omega'],
+        bounds: [-0.5, 0.5, -0.5, 0.5, 0, 0.3]
+    };
+}
+
+// API endpoint for metadata
 app.get('/api/metadata', (req, res) => {
-    // Look for metadata in the root vtp directory (up one level from src)
-    const metadataPath = path.join(__dirname, '..', 'vtp', 'metadata.json');
+    const vtpOutputPath = path.join(__dirname, '..', 'VTK', 'vtp_output');
+    const metadataPath = path.join(vtpOutputPath, 'metadata.json');
     
     if (fs.existsSync(metadataPath)) {
         try {
             const metadata = require(metadataPath);
             res.json(metadata);
         } catch (error) {
-            // Return default metadata if file doesn't exist or is malformed
-            res.json({
-                totalTimesteps: 7,  // Updated to match your 7 VTP files
-                timeStep: 0.1,
-                fields: ['T', 'U', 'alpha.water', 'p', 'p_rgh', 'k', 'epsilon', 'omega'],
-                bounds: [-0.5, 0.5, -0.5, 0.5, 0, 0.3]
-            });
+            const metadata = generateMetadataFromFiles(vtpOutputPath);
+            res.json(metadata);
         }
     } else {
-        // Return default metadata matching your file count
-        res.json({
-            totalTimesteps: 7,  // You have final_0.vtp through final_6.vtp
-            timeStep: 0.1,
-            fields: ['T', 'U', 'alpha.water', 'p', 'p_rgh', 'k', 'epsilon', 'omega'],
-            bounds: [-0.5, 0.5, -0.5, 0.5, 0, 0.3]
-        });
+        const metadata = generateMetadataFromFiles(vtpOutputPath);
+        res.json(metadata);
     }
 });
 
-// Range requests for large VTP files from root vtp directory
+// Range requests for large VTP files
 app.get('/data/:filename', (req, res) => {
     const filename = req.params.filename;
-    // Look for VTP files in the root vtp directory (up one level from src)
-    const filepath = path.join(__dirname, '..', 'vtp', filename);
+    const filepath = path.join(__dirname, '..', 'VTK', 'vtp_output', filename);
     
-    // Check if file exists
     if (!fs.existsSync(filepath)) {
         return res.status(404).send('VTP file not found: ' + filename);
     }
@@ -163,7 +174,6 @@ app.get('/data/:filename', (req, res) => {
     const range = req.headers.range;
     
     if (range) {
-        // Handle range request for progressive loading
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
@@ -178,7 +188,6 @@ app.get('/data/:filename', (req, res) => {
         res.writeHead(206, head);
         file.pipe(res);
     } else {
-        // Send entire file
         const head = {
             'Content-Length': fileSize,
             'Content-Type': 'application/xml',
@@ -186,6 +195,29 @@ app.get('/data/:filename', (req, res) => {
         res.writeHead(200, head);
         fs.createReadStream(filepath).pipe(res);
     }
+});
+
+// API endpoint to get available timesteps
+app.get('/api/timesteps', (req, res) => {
+    const vtpOutputPath = path.join(__dirname, '..', 'VTK', 'vtp_output');
+    let timesteps = [];
+    
+    if (fs.existsSync(vtpOutputPath)) {
+        const files = fs.readdirSync(vtpOutputPath);
+        const vtpFiles = files.filter(file => 
+            file.startsWith('combined_timestep_') && file.endsWith('.vtp')
+        );
+        
+        timesteps = vtpFiles.map(file => {
+            const match = file.match(/combined_timestep_(\d+)\.vtp/);
+            return {
+                timestep: match ? parseInt(match[1]) : 0,
+                filename: file
+            };
+        }).sort((a, b) => a.timestep - b.timestep);
+    }
+    
+    res.json(timesteps);
 });
 
 // Health check endpoint
@@ -196,22 +228,25 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log('Server running on http://localhost:' + PORT);
-    console.log('Serving static files from: ' + __dirname);
-    console.log('Webpack dist files from: ' + path.join(__dirname, '..', 'dist'));
+    console.log('Current working directory: ' + process.cwd());
+    console.log('Server file location: ' + __dirname);
     
-    const vtpPath = path.join(__dirname, '..', 'vtp');
+    const vtpPath = path.join(__dirname, '..', 'VTK', 'vtp_output');
     console.log('VTP files directory: ' + vtpPath);
     console.log('VTP directory exists:', fs.existsSync(vtpPath));
     
-    // List VTP files if directory exists
     if (fs.existsSync(vtpPath)) {
         const files = fs.readdirSync(vtpPath);
-        console.log('Files in VTP directory:', files);
+        const vtpFiles = files.filter(f => f.endsWith('.vtp'));
+        console.log('VTP files found:', vtpFiles);
+    } else {
+        console.log('VTP directory not found. Checking alternative locations...');
+        const alternatives = [
+            path.join(__dirname, 'VTK', 'vtp_output'),
+            path.join(process.cwd(), 'VTK', 'vtp_output')
+        ];
+        alternatives.forEach((alt, i) => {
+            console.log(`Alternative ${i+1}: ${alt} - exists: ${fs.existsSync(alt)}`);
+        });
     }
-    
-    console.log('Data files directory: ' + path.join(__dirname, 'data'));
-    
-    // Test if final_0.vtp exists
-    const testFile = path.join(__dirname, '..', 'vtp', 'final_0.vtp');
-    console.log('final_0.vtp exists:', fs.existsSync(testFile));
 });

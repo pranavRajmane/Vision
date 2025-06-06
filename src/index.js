@@ -17,7 +17,8 @@ class CastingVisualization {
         this.currentTimestep = 0;
         this.animationId = null;
         this.isPlaying = false;
-        this.totalTimesteps = 7; // Updated to match your inlet files (0-6)
+        this.totalTimesteps = 6; // Will be updated from metadata
+        this.timestepFiles = []; // Will store actual timestep filenames
     }
 
     setupRenderer() {
@@ -131,8 +132,11 @@ class CastingVisualization {
         try {
             const response = await fetch('/api/metadata');
             const metadata = await response.json();
-            this.totalTimesteps = metadata.totalTimesteps || 7;
+            this.totalTimesteps = metadata.totalTimesteps || 6;
             this.timeStep = metadata.timeStep || 0.1;
+            
+            // Load available timesteps
+            await this.loadTimestepFiles();
             
             // Update UI
             const timeSlider = document.getElementById('timeSlider');
@@ -146,11 +150,40 @@ class CastingVisualization {
         }
     }
 
+    async loadTimestepFiles() {
+        try {
+            const response = await fetch('/api/timesteps');
+            const timesteps = await response.json();
+            this.timestepFiles = timesteps;
+            this.totalTimesteps = timesteps.length;
+            
+            console.log('Available timestep files:', this.timestepFiles);
+        } catch (error) {
+            console.warn('Failed to load timestep files, using default pattern:', error);
+            // Fallback to default pattern
+            this.timestepFiles = [
+                { timestep: 0, filename: 'combined_timestep_0000.vtp' },
+                { timestep: 116, filename: 'combined_timestep_0116.vtp' },
+                { timestep: 1262, filename: 'combined_timestep_1262.vtp' },
+                { timestep: 1496, filename: 'combined_timestep_1496.vtp' },
+                { timestep: 1808, filename: 'combined_timestep_1808.vtp' },
+                { timestep: 8420, filename: 'combined_timestep_8420.vtp' }
+            ];
+            this.totalTimesteps = this.timestepFiles.length;
+        }
+    }
+
     async loadTimestep(timestepIndex) {
         try {
-            // FIXED: Now uses inlet_ instead of final_
-            const filename = `data/inlet_${timestepIndex}.vtp`;
-            console.log(`Loading timestep ${timestepIndex}: ${filename}`);
+            // Get the actual filename for this timestep index
+            if (timestepIndex >= this.timestepFiles.length) {
+                console.error(`Timestep index ${timestepIndex} out of range (max: ${this.timestepFiles.length - 1})`);
+                return;
+            }
+            
+            const timestepInfo = this.timestepFiles[timestepIndex];
+            const filename = `data/${timestepInfo.filename}`;
+            console.log(`Loading timestep ${timestepIndex}: ${filename} (actual timestep: ${timestepInfo.timestep})`);
             
             const reader = vtkXMLPolyDataReader.newInstance();
             await reader.setUrl(filename);
@@ -191,7 +224,7 @@ class CastingVisualization {
             // Update status
             const statusElement = document.getElementById('loadStatus');
             if (statusElement) {
-                statusElement.textContent = `Timestep ${timestepIndex}/6 - ${polydata.getNumberOfPoints()} points - Field: ${fieldName}`;
+                statusElement.textContent = `Timestep ${timestepIndex}/${this.totalTimesteps - 1} - ${polydata.getNumberOfPoints()} points - Field: ${fieldName} - Actual timestep: ${timestepInfo.timestep}`;
             }
             
         } catch (error) {
@@ -239,6 +272,18 @@ class CastingVisualization {
                     break;
                 case 'U':
                     option.textContent = 'Velocity (U)';
+                    break;
+                case 'T':
+                    option.textContent = 'Temperature (T)';
+                    break;
+                case 'k':
+                    option.textContent = 'Turbulent Kinetic Energy (k)';
+                    break;
+                case 'epsilon':
+                    option.textContent = 'Turbulent Dissipation (epsilon)';
+                    break;
+                case 'omega':
+                    option.textContent = 'Specific Dissipation Rate (omega)';
                     break;
                 default:
                     option.textContent = fieldName;
